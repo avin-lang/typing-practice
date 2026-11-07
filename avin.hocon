@@ -1,0 +1,2 @@
+package { name = "typing-practice", version = "0.1.0", description = "Typing speed practice in the terminal" }
+dependencies { tui { git = "github.com/avin-lang/tui", version = "0.1.0" } }

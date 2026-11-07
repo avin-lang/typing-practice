@@ -1,0 +1,113 @@
+module dev.avinlang.typing
+
+import avin.random.Random
+import dev.avinlang.tui.{Char, Ctrl, Down, Enter, Escape, Event, KeyPress, Stop, Up}
+
+val modeNames: Vector[string] = ["Short passages", "Longer passages", "Tricky words", "Practice my mistakes"]
+val trickyWords: Vector[string] = ["committee", "unnecessary", "accommodate", "rhythm", "sixths", "strengths", "because", "people", "different", "available", "necessary", "occasionally", "separate", "definitely", "receive", "believe", "successful", "tomorrow", "beginning", "embarrass", "maintenance", "environment", "immediately", "particularly", "February", "Wednesday", "Tuesday", "I'm", "don't", "they're", "you've", "isn't", "Hello!", "really?", "almost", "probably", "through", "thought", "whether", "which"]
+
+// Keeps unique words, including mistakes later corrected with backspace.
+// Retains letters and apostrophes within contractions; removes other punctuation.
+class Mistakes()
+    val words = Buffer[string]()
+
+    record(target: Vector[char], at: int)
+        if at < 0 || at >= target.length() then return
+        if target(at).isWhitespace() then return
+        val index = at
+        var start = index
+        var end = index
+        while start > 0 && target(start - 1) != ' '
+            start -= 1
+        while end < target.length() && target(end) != ' '
+            end += 1
+        val out = StringWriter()
+        for i in start ..< end
+            val c = target(i)
+            if c.isLetter()
+                out.write(c.toString())
+            else if (c == '\'' || c == '’') && start < i < end - 1
+                if target(i - 1).isLetter() && target(i + 1).isLetter()
+                    out.write("'")
+        val word = practiceWord(out.text())
+        if word.isEmpty() then return
+        // Compare without case, but retain the first spelling from the source.
+        for saved in words
+            if saved.toLowerCase() == word.toLowerCase() then return
+        words.addOne(word)
+
+    // Sample without replacement; a small collection makes a shorter drill.
+    drill(rng: Random) -> string = rng.shuffle(words.toVector()).take(24).mkString(" ")
+
+// The first-person pronoun stays capitalized, including its contractions.
+private practiceWord(word: string) -> string = word.toLowerCase() match
+    "i" -> "I"
+    "i'm" -> "I'm"
+    "i'd" -> "I'd"
+    "i'll" -> "I'll"
+    "i've" -> "I've"
+    _ -> word
+
+wordDrill(rng: Random, words: Vector[string]) -> string
+    if words.isEmpty() then return ""
+    val chosen = Buffer[string]()
+    for _ in 0 ..< 24
+        chosen.addOne(words(rng.nextInt(words.length())))
+    chosen.toVector().mkString(" ")
+
+// UI state and event handling are independent of the terminal for testing.
+class Practice(val rng: Random)
+    val mistakes = Mistakes()
+    var menu = true
+    var selected = 0
+    var mode = 0
+    var lesson = -1
+    var session = Session("")
+
+    start(which: int)
+        if which == 3 && mistakes.words.isEmpty() then return
+        if which != mode then lesson = -1
+        mode = which
+        next()
+        menu = false
+
+    next()
+        if mode == 0
+            lesson = choosePassage(rng, if lesson < 0 then None else Some(lesson))
+            session = Session(passages(lesson))
+        else if mode == 1
+            val chosen = rng.nextInt(longPassages.length() - (if lesson < 0 then 0 else 1))
+            lesson = if lesson >= 0 && chosen >= lesson then chosen + 1 else chosen
+            session = Session(longPassages(lesson))
+        else if mode == 2
+            session = Session(wordDrill(rng, trickyWords))
+        else
+            session = Session(mistakes.drill(rng))
+
+    // True asks the terminal loop to exit.
+    handle(event: Event, now: long) -> bool = event match
+        Stop(_) -> true
+        KeyPress(Char('c'), mods) if (mods & Ctrl) != 0 -> true
+        KeyPress(Escape, _) ->
+            if menu then return true
+            menu = true
+            selected = mode
+            false
+        _ ->
+            if menu
+                event match
+                    KeyPress(Up, _) -> selected = (selected + 3) % 4
+                    KeyPress(Down, _) -> selected = (selected + 1) % 4
+                    KeyPress(Enter, _) -> start(selected)
+                    KeyPress(Char(c), 0) if '1' <= c <= '4' ->
+                        selected = int(c) - int('1')
+                        start(selected)
+                    _ -> ()
+            else
+                val before = session.mistakes
+                val index = session.typed.length()
+                val action = session.handle(event, now)
+                if session.mistakes > before then mistakes.record(session.target, index)
+                if action == 2 then session = Session(session.passage)
+                if action == 3 then next()
+            false

@@ -1,0 +1,100 @@
+module dev.avinlang.typing
+
+import dev.avinlang.tui.{Bold, BrightBlack, Cyan, Green, Grid, Red, Rect, Reverse, Rounded, Style, Underline, Yellow}
+
+draw(g: Grid, s: Session, lesson: int, now: long)
+    if g.width < 40 || g.height < 15
+        g.textIn(0, 0, g.width, "Please resize to at least 40 x 15.", Style.fg(Yellow))
+        g.textIn(0, 2, g.width, "Esc quits. Ctrl-R retries. Tab skips.")
+        return
+    val width = minSize(g.width - 4, 84)
+    val left = (g.width - width) / 2
+    g.text(left, 1, "TYPE / practice", Style.fg(Cyan).with(Bold))
+    g.text(left, 3, s"${s.wpm(now)} WPM   ${s.accuracy()}% accuracy   ${s.elapsed(now) / 1000}s", Style.fg(Yellow))
+    g.text(left, 4, s"Passage ${lesson + 1}/${passages.length()}   ${s.typed.length()}/${s.target.length()} characters", Style.fg(BrightBlack))
+    val box = Rect(left, 6, width, g.height - 10)
+    g.box(box, Style.fg(BrightBlack), Rounded, if s.done() then " complete " else " follow the text ")
+    val cols = width - 4
+    val rows = box.h - 2
+    val positions = passagePositions(s.target, cols)
+    val cursorRow = positions(minSize(s.typed.length(), s.target.length())).1
+    val firstRow = maxSize(0, cursorRow - rows + 1)
+    for i in 0 ..< s.target.length()
+        val col, line = positions(i)
+        val row = line - firstRow
+        if 0 <= row < rows && col < cols
+            var style = Style.fg(BrightBlack)
+            var shown = s.target(i)
+            if i < s.typed.length()
+                if s.typed(i) == s.target(i)
+                    style = Style.fg(Green)
+                else
+                    style = Style.fg(Red).with(Underline)
+                    if shown == ' ' then shown = '·'
+            else if i == s.typed.length()
+                style = Style.fg(Cyan).with(Reverse).with(Bold)
+            g.putChar(left + 2 + col, box.y + 1 + row, shown, style)
+    val message = if s.done() then s"Complete! ${s.correct()} correct, ${s.mistakes} mistakes. Enter: next passage" else if s.started.isEmpty() then "Start typing when ready. The clock starts with you." else "Green: correct   Red: error   Backspace: correct your last key"
+    g.textIn(left, g.height - 3, width, message, Style.fg(if s.done() then Green else Cyan))
+    g.textIn(left, g.height - 2, width, "Ctrl-R retry   Tab next passage   Esc / Ctrl-C quit", Style.fg(BrightBlack))
+
+private minSize(a: int, b: int) -> int = if a < b then a else b
+private maxSize(a: int, b: int) -> int = if a > b then a else b
+
+// One position per character, followed by the insertion position. Wrap before a word
+// when it fits on a line; only words wider than the entire line need splitting.
+passagePositions(chars: Vector[char], cols: int) -> Vector[(int, int)]
+    val positions = Buffer[(int, int)]()
+    var x = 0
+    var y = 0
+    for i in 0 ..< chars.length()
+        if chars(i) == ' ' && x >= cols
+            positions.addOne((cols, y))
+            continue
+        if chars(i) != ' ' && (i == 0 || chars(i - 1) == ' ')
+            var end = i
+            while end < chars.length() && chars(end) != ' '
+                end += 1
+            val length = end - i
+            if x > 0 && length <= cols && x + length > cols
+                x = 0
+                y += 1
+        if x >= cols
+            x = 0
+            y += 1
+        positions.addOne((x, y))
+        x += 1
+    positions.addOne((x, y))
+    positions.toVector()
+
+drawPractice(g: Grid, app: Practice, now: long)
+    if !app.menu
+        draw(g, app.session, maxSize(0, app.lesson), now)
+        if g.width >= 40 && g.height >= 15
+            val width = minSize(g.width - 4, 84)
+            val left = (g.width - width) / 2
+            if app.mode == 0 || app.mode == 1
+                val excerpt = if app.mode == 0 then shortLiterature(app.lesson) else longLiterature(app.lesson)
+                g.textIn(left, 2, width, s"${excerpt.author} / ${excerpt.work}", Style.fg(BrightBlack))
+            g.textIn(left, 4, width, s"${modeNames(app.mode)}   ${app.session.typed.length()}/${app.session.target.length()} characters", Style.fg(BrightBlack))
+            g.textIn(left, g.height - 2, width, "Ctrl-R retry   Tab next   Esc menu   Ctrl-C quit", Style.fg(BrightBlack))
+        return
+    if g.width < 40 || g.height < 15
+        g.textIn(0, 0, g.width, "Please resize to at least 40 x 15.", Style.fg(Yellow))
+        return
+    val width = minSize(g.width - 4, 84)
+    val left = (g.width - width) / 2
+    g.text(left, 1, "TYPE / practice", Style.fg(Cyan).with(Bold))
+    g.textIn(left, 3, width, "Choose your practice", Style.fg(Yellow))
+    for i in 0 ..< modeNames.length()
+        val label = s"${i + 1}  ${modeNames(i)}"
+        val style = if i == app.selected then Style.fg(Cyan).with(Reverse).with(Bold) else Style.plain()
+        g.textIn(left, 5 + i, width, label, style)
+    val hint = app.selected match
+        0 -> s"${passages.length()} literary excerpts, chosen randomly."
+        1 -> s"${longPassages.length()} longer literary excerpts."
+        2 -> "Repeated letters, awkward sequences, punctuation."
+        _ -> if app.mistakes.words.isEmpty() then "Type a drill first. Mistyped words will appear here." else s"${app.mistakes.words.length()} unique words to practice."
+    g.textIn(left, 10, width, hint, Style.fg(Yellow))
+    g.textIn(left, 11, width, "Mistakes are remembered during this run.", Style.fg(BrightBlack))
+    g.textIn(left, g.height - 2, width, "Up/Down + Enter, or 1-4   Esc / Ctrl-C quit", Style.fg(BrightBlack))
