@@ -1,10 +1,11 @@
 // typist: typing practice in the terminal, with live speed and accuracy.
+import avin.io.IoError
 import avin.random.Random
 import avin.time
 import dev.avinlang.typist.{Practice, Quit, draw}
 import dev.avinlang.tui.{Options, Terminal}
 
-main() -> int = Terminal.use(Options(), run) match
+main() -> int = Terminal.use(Options(), run).flatMap(r -> r) match
   Ok(()) -> 0
   Err(e) ->
     eprintln(s"typist: ${e.message}")
@@ -13,12 +14,13 @@ main() -> int = Terminal.use(Options(), run) match
 // How long to wait for a key before drawing again, so the clock and speed stay current.
 val tick: time.Duration = time.millis(100)
 
-run(term: Terminal)
+// A frame that cannot be written ends it with the error.
+run(term: Terminal) -> Result[unit, IoError]
   val app = Practice(Random())
   loop
     val g = term.frame()
     draw(g, app, now())
-    term.present(g)
-    if term.poll(tick) is Some(event) && app.handle(event, now()) == Quit then return
+    term.present(g)?
+    if term.poll(tick) is Some(event) && app.handle(event, now()) == Quit then return Ok(())
 
 private now() -> long = time.monotonic().toMillis
