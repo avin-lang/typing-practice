@@ -1,0 +1,34 @@
+module dev.avinlang.typist
+
+import dev.avinlang.tui.wrap
+
+// The characters of a passage one screen row holds, from `start` up to `end`.
+data Row(start: int, end: int)
+
+impl Row
+    contains(i: int) -> bool = start <= i < end
+
+// The rows `text` takes `cols` columns wide: the lines tui's `wrap` breaks it into, each followed by
+// the spaces dropped where it breaks. Every character belongs to exactly one row, so the cursor is
+// on screen even when it sits on the space between two rows, and the rows joined are the text.
+rowsOf(text: string, cols: int) -> Vector[Row]
+    val chars = text.chars
+    val rows = Vector.newBuilder[Row]()
+    var at = 0
+    for line in wrap(text, cols)
+        val start = at
+        at += line.charCount
+        while at < chars.length && chars(at) == ' '
+            at += 1
+        rows.addOne(Row(start, at))
+    rows.result()
+
+// The row holding character `i`; the last row for the position after the last character.
+rowOf(rows: Vector[Row], i: int) -> int
+    val found = rows.indexWhere(r -> r.contains(i))
+    if found >= 0 then found else max(rows.length - 1, 0)
+
+// The first of `total` rows to show in `visible` rows so that row `cursor` is shown with the row
+// before it above it, where there is room, and no blank rows are left below the last.
+firstShown(cursor: int, total: int, visible: int) -> int =
+    max(min(cursor - min(1, visible - 1), total - visible), 0)

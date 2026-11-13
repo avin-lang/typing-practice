@@ -1,21 +1,24 @@
-import avin.time
+// typist: typing practice in the terminal, with live speed and accuracy.
 import avin.random.Random
-import dev.avinlang.typing.{Practice, drawPractice}
+import avin.time
+import dev.avinlang.typist.{Practice, Quit, draw}
 import dev.avinlang.tui.{Options, Terminal}
 
 main() -> int = Terminal.use(Options(), run) match
     Ok(()) -> 0
     Err(e) ->
-        eprintln(s"typing-practice: ${e.message}")
+        eprintln(s"typist: ${e.message}")
         1
+
+// How long to wait for a key before drawing again, so the clock and speed stay current.
+val tick: time.Duration = time.millis(100)
 
 run(term: Terminal)
     val app = Practice(Random())
     loop
         val g = term.frame()
-        drawPractice(g, app, time.monotonic().toMillis)
+        draw(g, app, now())
         term.present(g)
-        term.poll(time.millis(50)) match
-            Some(event) ->
-                if app.handle(event, time.monotonic().toMillis) then return
-            None -> ()
+        if term.poll(tick) is Some(event) && app.handle(event, now()) == Quit then return
+
+private now() -> long = time.monotonic().toMillis

@@ -1,77 +1,77 @@
 module tests
 
+// The passages and word lists, and how drills are drawn from them.
 import avin.random.Random
-import dev.avinlang.tui.Grid
-import dev.avinlang.typing.{Practice, choosePassage, drawPractice, longLiterature, longPassages, passages, shortLiterature}
+import dev.avinlang.typist.{Excerpt, choose, drillLength, longExcerpts, shortExcerpts, trickyWords, wordDrill}
 
-@test("the passage collection contains varied, distinct printable drills")
-collection()
-    assert(passages.length >= 24)
-    for i in 0 ..< passages.length
-        assert(passages(i).charCount > 80)
-        for c in passages(i).chars
-            assert(' ' <= c <= '~')
-        for j in i + 1 ..< passages.length
-            assert(passages(i) != passages(j))
+checkCollection(excerpts: Vector[Excerpt], shortest: int)
+    for i in excerpts.indices
+        val e = excerpts(i)
+        assert(e.text.charCount >= shortest, e.text)
+        assert(e.text.forall(c -> ' ' <= c <= '~'), s"printable ASCII only: ${e.text}")
+        assert(!e.text.contains("  "), s"single spaces only: ${e.text}")
+        assertEq(e.text, e.text.trim)
+        assert(e.work.author.nonEmpty && e.work.title.nonEmpty)
+        assert(e.work.source.startsWith("https://www.gutenberg.org/ebooks/"))
+        for j in i + 1 ..< excerpts.length
+            assert(e.text != excerpts(j).text)
 
-@test("random selection reaches every passage and never immediately repeats")
+@test("short excerpts: 24, four from each of six books, printable and distinct")
+shortCollection()
+    assertEq(shortExcerpts.length, 24)
+    checkCollection(shortExcerpts, 80)
+    val works = shortExcerpts.map(e -> e.work).distinct
+    assertEq(works.length, 6)
+    for w in works
+        assertEq(shortExcerpts.count(e -> e.work == w), 4)
+
+@test("longer excerpts: 8 of at least 550 characters, printable and distinct")
+longCollection()
+    assertEq(longExcerpts.length, 8)
+    checkCollection(longExcerpts, 550)
+
+@test("the sources page's counts hold: two longer excerpts from Carroll and Melville, one from the rest")
+longSources()
+    for e in longExcerpts
+        val expected = if e.work.author == "Lewis Carroll" || e.work.author == "Herman Melville" then 2 else 1
+        assert(longExcerpts.count(x -> x.work == e.work) == expected, e.work.title)
+    assertEq(longExcerpts.map(e -> e.work).distinct.length, 6)
+
+@test("random selection reaches every index and never repeats the last")
 selection()
     val rng = Random(42)
     val seen = Buffer[int]()
     var previous: Option[int] = None
     for _ in 0 ..< 1000
-        val chosen = choosePassage(rng, previous)
-        assert(0 <= chosen < passages.length)
-        previous match
-            Some(index) -> assert(chosen != index)
-            None -> ()
+        val chosen = choose(rng, 24, previous)
+        assert(0 <= chosen < 24)
+        assert(previous != Some(chosen))
         if !seen.contains(chosen) then seen.addOne(chosen)
         previous = Some(chosen)
-    assertEq(seen.length, passages.length)
+    assertEq(seen.length, 24)
 
-@test("initial selection varies and the same seed reproduces choices")
+@test("the first selection varies and the same seed repeats it")
 initialSelection()
     val a = Random(123)
     val b = Random(123)
     val seen = Buffer[int]()
     for _ in 0 ..< 200
-        val chosen = choosePassage(a, None)
-        assertEq(chosen, choosePassage(b, None))
+        val chosen = choose(a, 24, None)
+        assertEq(chosen, choose(b, 24, None))
         if !seen.contains(chosen) then seen.addOne(chosen)
     assert(seen.length > 4)
 
-@test("every short excerpt carries an author, work, and source shown during practice")
-literaryAttribution()
-    assertEq(shortLiterature.length, passages.length)
-    for i in 0 ..< shortLiterature.length
-        val excerpt = shortLiterature(i)
-        assertEq(excerpt.text, passages(i))
-        assert(excerpt.author.nonEmpty)
-        assert(excerpt.work.nonEmpty)
-        assert(excerpt.source.startsWith("https://www.gutenberg.org/ebooks/"))
-    val app = Practice(Random(42))
-    app.start(0)
-    val g = Grid(100, 24)
-    drawPractice(g, app, 0)
-    val excerpt = shortLiterature(app.lesson)
-    assert(g.rowText(2).contains(excerpt.author))
-    assert(g.rowText(2).contains(excerpt.work))
+@test("a collection of one is chosen again rather than failing")
+singleChoice()
+    assertEq(choose(Random(1), 1, None), 0)
+    assertEq(choose(Random(1), 1, Some(0)), 0)
+    assertEq(choose(Random(1), 2, Some(0)), 1)
+    assertEq(choose(Random(1), 2, Some(1)), 0)
 
-@test("all longer passages are attributed literature and display author and book")
-longAttribution()
-    assertEq(longLiterature.length, 8)
-    assertEq(longLiterature.length, longPassages.length)
-    val app = Practice(Random(42))
-    app.start(1)
-    for i in 0 ..< longLiterature.length
-        val excerpt = longLiterature(i)
-        assertEq(excerpt.text, longPassages(i))
-        assert(excerpt.text.charCount >= 550)
-        assert(excerpt.author.nonEmpty)
-        assert(excerpt.work.nonEmpty)
-        assert(excerpt.source.startsWith("https://www.gutenberg.org/ebooks/"))
-        app.lesson = i
-        val g = Grid(100, 24)
-        drawPractice(g, app, 0)
-        assert(g.rowText(2).contains(excerpt.author))
-        assert(g.rowText(2).contains(excerpt.work))
+@test("word drills draw a full drill from the list, and nothing from an empty one")
+wordDrills()
+    val words = wordDrill(Random(5), trickyWords).split(" ")
+    assertEq(words.length, drillLength)
+    assert(words.forall(w -> trickyWords.contains(w)))
+    assertEq(wordDrill(Random(5), []), "")
+    assertEq(wordDrill(Random(5), ["one"]), Vector.fill(drillLength, "one").mkString(" "))

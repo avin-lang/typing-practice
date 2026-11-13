@@ -1,0 +1,177 @@
+module tests
+
+// The screens drawn into grids with no terminal: the menu, a drill, the results over it, and how a
+// passage is laid out in rows.
+import avin.random.Random
+import dev.avinlang.typist.{LongPassages, Practice, Row, Session, ShortPassages, TrickyWords, clock, draw,
+                            figuresOf, firstShown, hint, longExcerpts, rowOf, rowsOf, shortExcerpts, spansOf, styleOf,
+                            Next, Pending, Right, Wrong}
+import dev.avinlang.tui.{Char, Grid, KeyPress, Reverse, Span}
+
+rows(g: Grid) -> Vector[string] = Vector.tabulate(g.height, y -> g.rowText(y))
+
+drawn(app: Practice, w: int, h: int, now: long) -> Grid
+    val g = Grid(w, h)
+    draw(g, app, now)
+    g
+
+// The column of the first cell drawn reversed in row `y`, the cursor; -1 for none.
+cursorColumn(g: Grid, y: int) -> int = (0 ..< g.width).indexWhere(x -> g(x, y).style.has(Reverse))
+
+@test("words wrap together; the space at a break belongs to the row before it")
+wrapping()
+    assertEq(rowsOf("one three six", 8), [Row(0, 4), Row(4, 10), Row(10, 13)])
+    assertEq(rowsOf("abcdefgh ij", 8), [Row(0, 9), Row(9, 11)])
+    assertEq(rowsOf("abcdefghij", 8), [Row(0, 8), Row(8, 10)])
+    assertEq(rowsOf("ab ", 8), [Row(0, 3)])
+    assertEq(rowsOf("", 8), [Row(0, 0)])
+    assertEq(rowsOf("abc", 0), [])
+
+@test("wide characters take two columns when wrapping")
+wideWrapping()
+    assertEq(rowsOf("東京 ab", 4), [Row(0, 3), Row(3, 5)])
+    assertEq(rowsOf("café au lait", 7), [Row(0, 8), Row(8, 12)])
+
+@test("every passage's rows are contiguous and cover it, at any width")
+coverage()
+    for e in shortExcerpts ++ longExcerpts
+        for cols in [1, 10, 37, 80]
+            val rs = rowsOf(e.text, cols)
+            assertEq(rs(0).start, 0)
+            assertEq(rs(rs.length - 1).end, e.text.charCount)
+            for k in 1 ..< rs.length
+                assertEq(rs(k).start, rs(k - 1).end)
+
+@test("the cursor's row, and the end of the passage on the last row")
+cursorRow()
+    val rs = rowsOf("one three six", 8)
+    assertEq(rowOf(rs, 0), 0)
+    assertEq(rowOf(rs, 3), 0)
+    assertEq(rowOf(rs, 4), 1)
+    assertEq(rowOf(rs, 13), 2)
+    assertEq(rowOf([], 0), 0)
+
+@test("scrolling keeps the row before the cursor's in view and leaves no blank rows below")
+scrolling()
+    assertEq(firstShown(0, 10, 3), 0)
+    assertEq(firstShown(1, 10, 3), 0)
+    assertEq(firstShown(5, 10, 3), 4)
+    assertEq(firstShown(9, 10, 3), 7)
+    assertEq(firstShown(1, 2, 5), 0)
+    assertEq(firstShown(4, 10, 1), 4)
+
+@test("a row is drawn in runs of one mark, a mistyped space as a dot")
+runs()
+    val s = Session("ab cd")
+    for c in "ab!".chars
+        s.typeChar(c, 0)
+    assertEq(spansOf(s, Row(0, 5)), [Span("ab", Some(styleOf(Right))), Span("·", Some(styleOf(Wrong))),
+                                      Span("c", Some(styleOf(Next))), Span("d", Some(styleOf(Pending)))])
+    assertEq(spansOf(s, Row(2, 2)), [])
+
+@test("the menu at 80 by 24: the title, the four drills with the first selected, and the keys")
+menuScreen()
+    val g = drawn(Practice(Random(1)), 80, 24, 0)
+    val r = rows(g)
+    assertEq(r(1).trim, "typist  choose a drill")
+    assert(r(3).contains("1 Short passages") && r(3).contains("24 short excerpts"))
+    assert(r(6).contains("4 My mistakes") && r(6).contains("type a drill first"))
+    assert(g(4, 3).style.has(Reverse))
+    assert(!g(4, 4).style.has(Reverse))
+    assertEq(r(22).trim, "↑↓ move  Enter start  1-4 choose  Esc quit")
+
+@test("a drill shows the mode, live figures, progress, the attribution on its frame and the keys")
+drillScreen()
+    val app = Practice(Random(1))
+    app.start(ShortPassages)
+    val text = app.session.passage
+    typeText(app, text.take(10), 1000)
+    val g = drawn(app, 80, 24, 7000)
+    val r = rows(g)
+    val work = app.excerpt.get.work
+    assertEq(r(1).trim, "typist  Short passages")
+    assertEq(r(3).trim, s"${app.session.wpm(7000)} wpm    100% accuracy    0:06 time")
+    assert(r(4).trim.endsWith(s"10/${text.charCount}"))
+    assert(r(6).contains(work.author) && r(6).contains(work.title))
+    assert(r(7).contains(text.take(10)))
+    assertEq(cursorColumn(g, 7), 2 + 2 + 10)
+    assertEq(r(21).trim, "No mistakes yet.")
+    assertEq(r(22).trim, "Ctrl-R retry  Tab next  Esc menu  Ctrl-C quit")
+
+@test("before the first key the hint says how to begin, then counts mistakes")
+hints()
+    val s = Session("abc")
+    assertEq(hint(s), "Start typing when ready: the clock starts with your first key.")
+    s.typeChar('x', 0)
+    assertEq(hint(s), "1 mistake so far. Backspace corrects.")
+    s.typeChar('x', 0)
+    assertEq(hint(s), "2 mistakes so far. Backspace corrects.")
+
+@test("the cursor stays visible on the space where a row breaks")
+cursorOnBreak()
+    // 40 columns: a page of 36, a box of 34 inside its border, 32 for text.
+    val app = drilling(TrickyWords, "abcdefghijklmnopqrstuvwxyzabcdef next")
+    typeText(app, "abcdefghijklmnopqrstuvwxyzabcdef", 0)
+    val g = drawn(app, 40, 15, 0)
+    assertEq(cursorColumn(g, 7), 4 + 32)
+    assert(rows(g)(8).contains("next"))
+
+@test("a long passage in a short box scrolls with the cursor and shows a scrollbar")
+scrollingView()
+    val app = Practice(Random(2))
+    app.start(LongPassages)
+    val text = app.session.passage
+    typeText(app, text.take(text.charCount - 1), 0)
+    val g = drawn(app, 40, 15, 0)
+    // The box's right border, column 37, holds the bar: a track with the thumb at its end.
+    val bar = (7 ..< 11).map(y -> g(37, y).text).mkString("")
+    assert(bar.startsWith("│") && bar.endsWith("█"), bar)
+    // The last character, still to type, is on the last row the box shows.
+    val last = cursorColumn(g, 10)
+    assert(last >= 0)
+    assertEq(g(last, 10).text, text.drop(text.charCount - 1))
+
+@test("finishing opens the results over the drill: scores and the keys")
+resultsScreen()
+    val app = drilling(TrickyWords, "ab")
+    typeText(app, "a", 1000)
+    typeText(app, "b", 13000)
+    val r = rows(drawn(app, 80, 24, 20000))
+    val all = r.mkString("\n")
+    for want in ["drill complete", "Speed    2 wpm", "Accuracy 100%", "Time     0:12", "Correct  2 of 2 characters",
+                 "Mistakes 0 of 2 keystrokes", "Enter next  r retry  Esc menu  q quit"]
+        assert(all.contains(want), want)
+
+@test("the results' figures")
+figures()
+    val s = Session("abcde")
+    s.typeChar('a', 0)
+    s.typeChar('x', 0)
+    s.backspace()
+    for c in "bcde".chars
+        s.typeChar(c, 60000)
+    assertEq(figuresOf(s), [("Speed", "1 wpm"), ("Accuracy", "83%"), ("Time", "1:00"),
+                            ("Correct", "5 of 5 characters"), ("Mistakes", "1 of 6 keystrokes")])
+
+@test("times read as minutes and seconds")
+clocks()
+    assertEq(clock(0), "0:00")
+    assertEq(clock(999), "0:00")
+    assertEq(clock(65000), "1:05")
+    assertEq(clock(600000), "10:00")
+
+@test("every screen draws at every size, and a small terminal is asked to grow")
+sizes()
+    val app = Practice(Random(4))
+    val sizes = [(0, 0), (1, 1), (39, 14), (40, 14), (39, 15), (40, 15), (80, 24), (200, 60)]
+    for (w, h) in sizes
+        drawn(app, w, h, 0)
+    for m in [ShortPassages, LongPassages, TrickyWords]
+        app.start(m)
+        typeText(app, app.session.passage, 0)
+        for (w, h) in sizes
+            drawn(app, w, h, 0)
+        app.toMenu()
+    assertEq(rows(drawn(app, 39, 24, 0))(0).trim, "Make the terminal at least 40 columns")
+    assertEq(rows(drawn(app, 39, 24, 0))(1).trim, "by 15 rows.")
+    assert(rows(drawn(app, 40, 15, 0))(1).contains("typist"))

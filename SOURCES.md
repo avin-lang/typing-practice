@@ -1,7 +1,7 @@
 # Literary passage sources
 
-All 24 short drills and 8 longer drills are excerpts from the following literary works. Wording is taken
-from the linked Project Gutenberg plain-text editions. Paragraph whitespace is
+All 24 short drills and 8 longer drills are excerpts from the following literary works. Wording is
+taken from the linked Project Gutenberg plain-text editions. Paragraph whitespace is
 collapsed; curly quotes become straight quotes, dashes use keyboard equivalents,
 and underscore markers for italics are removed. Spelling and wording are retained.
 
@@ -15,7 +15,7 @@ and underscore markers for italics are removed. Spelling and wording are retaine
 Longer drills include one excerpt each from Austen, Conan Doyle, Dickens, and
 Stevenson, and two each from Carroll and Melville.
 
-The app shows the author and work above every short and longer passage. Source
-URLs are stored with each excerpt in `shortLiterature` and `longLiterature` in
-`passages.avin`. These works were
+typist shows the author and book on the frame of every short and longer passage.
+Each book and its source URL is a `Work` in `dev/avinlang/typist/passages.avin`, and
+every excerpt in `shortExcerpts` and `longExcerpts` names its `Work`. These works were
 first published in the nineteenth century; the excerpts use their original English.

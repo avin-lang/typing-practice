@@ -1,0 +1,41 @@
+module dev.avinlang.typist
+
+import avin.random.Random
+
+// The words mistyped during this run, each once, in the order first missed, spelled as the passage
+// first had it. A mistake later corrected with Backspace still counts.
+class Mistakes()
+    val words = Buffer[string]()
+
+    // Remembers the word around character `at` of `target`, where a mistake was just made. A mistake
+    // on whitespace, or in a token with no letters, remembers nothing.
+    record(target: Vector[char], at: int)
+        if wordAt(target, at) is Some(word) && !known(word) then words.addOne(word)
+
+    // Whether `word` is remembered already, in any case.
+    known(word: string) -> bool = words.exists(w -> w.compareIgnoreCase(word) == 0)
+
+    // Up to `drillLength` of the words in a random order, none twice.
+    drill(rng: Random) -> string = rng.shuffle(words).take(drillLength).mkString(" ")
+
+// The word around character `at` of `target` as a drill shows it: its letters, and an apostrophe
+// between two letters (a curly one written straight), so `"Don't!"` is `Don't`. The pronoun I keeps
+// its capital, alone and in its contractions. None where `at` is outside the text, on whitespace, or
+// in a token with no letters.
+wordAt(target: Vector[char], at: int) -> Option[string]
+    if !(0 <= at < target.length) || target(at).isWhitespace then return None
+    val start = target.lastIndexWhere(c -> c.isWhitespace, at) + 1
+    val after = target.indexWhere(c -> c.isWhitespace, at)
+    val end = if after < 0 then target.length else after
+    val inner = (i: int) -> start < i < end - 1 && target(i - 1).isLetter && target(i + 1).isLetter
+    val word = (start ..< end)
+        .filter(i -> target(i).isLetter || isApostrophe(target(i)) && inner(i))
+        .map(i -> if target(i).isLetter then target(i).toString() else "'")
+        .mkString("")
+    if word.isEmpty then None else Some(firstPerson(word))
+
+private isApostrophe(c: char) -> bool = c == '\'' || c == '’'
+
+private firstPerson(word: string) -> string
+    val lower = word.toLowerCase
+    if lower == "i" || lower.startsWith("i'") then "I" + lower.drop(1) else word

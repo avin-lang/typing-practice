@@ -1,0 +1,66 @@
+module tests
+
+// Which word a mistake is remembered as, and the drills made of them.
+import avin.random.Random
+import dev.avinlang.typist.{Mistakes, drillLength, trickyWords, wordAt}
+
+recorded(texts: Vector[string], at: int) -> Vector[string]
+    val m = Mistakes()
+    for text in texts
+        m.record(text.chars, at)
+    m.words.toVector
+
+@test("the word around a mistake, without its punctuation")
+words()
+    val target = "don't panic!".chars
+    assertEq(wordAt(target, 0), Some("don't"))
+    assertEq(wordAt(target, 3), Some("don't"))
+    assertEq(wordAt(target, 11), Some("panic"))
+    assertEq(wordAt(target, 5), None)
+    assertEq(wordAt(target, -1), None)
+    assertEq(wordAt(target, 12), None)
+    assertEq(wordAt([], 0), None)
+
+@test("mistakes on whitespace remember nothing, and any whitespace ends a word")
+whitespace()
+    val m = Mistakes()
+    val text = " hello  world ".chars
+    for i in [0, 6, 7, 13]
+        m.record(text, i)
+    m.record("hello\tworld".chars, 5)
+    m.record("hello\nworld".chars, 5)
+    assert(m.words.isEmpty)
+    assertEq(wordAt("hello\tworld".chars, 0), Some("hello"))
+
+@test("words keep their source case, drop digits and symbols, and case variants count once")
+normalized()
+    assertEq(recorded(["Hello!", "hello", "HELLO,", "[hello]", "he11llo", "--", "123", "$42.50", "...", "_Hello_", "café!", "CAFÉ"], 0), ["Hello", "café"])
+
+@test("contractions keep an apostrophe between letters, written straight, and lose surrounding quotes")
+contractions()
+    assertEq(recorded(["I'm", "I’m", "'I'm'", "\"I'm!\"", "don't,", "DON’T", "‘don't’", "they're.", "'hello'", "rock'n'roll"], 1),
+             ["I'm", "don't", "they're", "hello", "rock'n'roll"])
+
+@test("the pronoun I and its contractions keep their capital, once each")
+firstPerson()
+    assertEq(recorded(["i", "I", "i'm", "I'm", "I’M", "i'd", "I'd", "i'll", "I'll", "i've", "I've"], 0), ["I", "I'm", "I'd", "I'll", "I've"])
+
+@test("proper nouns keep the first spelling seen")
+properNouns()
+    assertEq(recorded(["February,", "Wednesday.", "London!", "Alice", "Elizabeth", "February", "FEBRUARY", "february", "wednesday", "ALICE"], 1),
+             ["February", "Wednesday", "London", "Alice", "Elizabeth"])
+
+@test("a drill holds each word once, at most a full drill of them, and nothing when there are none")
+drills()
+    val m = Mistakes()
+    assertEq(m.drill(Random(1)), "")
+    m.record("don't panic".chars, 0)
+    m.record("don't panic".chars, 7)
+    assertEq(m.drill(Random(42)).split(" ").sorted, ["don't", "panic"])
+    for word in trickyWords
+        m.record(word.chars, 0)
+    for seed in [1, 2, 42]
+        val words = m.drill(Random(long(seed))).split(" ")
+        assertEq(words.length, drillLength)
+        assertEq(words.distinct.length, drillLength)
+        assert(words.forall(w -> m.words.contains(w)))

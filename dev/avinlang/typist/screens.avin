@@ -1,0 +1,170 @@
+module dev.avinlang.typist
+
+import dev.avinlang.tui.{Bold, BrightBlack, BrightWhite, Char, Color, Column, Cyan, Enter, Escape, Event, Fill, Fixed,
+                         Green, Grid, KeyPress, Modal, Rect, Red, Reverse, Rounded, Scrollbar, Span, Style, Tab, Table,
+                         Yellow, textWidth}
+
+// The smallest terminal the program draws in, and the widest its column of text grows.
+val minWidth = 40
+val minHeight = 15
+val maxWidth = 84
+
+private val dim = Style.fg(BrightBlack)
+private val keyStyle = Style.fg(Cyan).with(Bold)
+private val figure = Style.plain().with(Bold)
+
+private val menuKeys: Vector[(string, string)] = [("↑↓", "move"), ("Enter", "start"), ("1-4", "choose"), ("Esc", "quit")]
+private val drillKeys: Vector[(string, string)] = [("Ctrl-R", "retry"), ("Tab", "next"), ("Esc", "menu"), ("Ctrl-C", "quit")]
+private val resultKeys: Vector[(string, string)] = [("Enter", "next"), ("r", "retry"), ("Esc", "menu"), ("q", "quit")]
+
+// The menu: the number that starts a mode, its name, and what it holds; no headings.
+menuTable() -> Table
+    val t = Table([Column("", 2, 1), Column("", 0, fit = true), Column("", 0, min = 10)])
+    t.header = false
+    t.selectedStyle = Style.fg(Cyan).with(Reverse | Bold)
+    t
+
+// Draws the whole screen for `app` at time `now`: the menu or the drill, and the results over it.
+draw(g: Grid, app: Practice, now: long)
+    if g.width < minWidth || g.height < minHeight
+        g.textBlock(g.area().pad(1, 0), s"Make the terminal at least $minWidth columns by $minHeight rows.", Style.fg(Yellow))
+        return
+    val page = g.area().centered(min(g.width - 4, maxWidth), g.height)
+    if app.choosing then drawMenu(g, page, app) else drawDrill(g, page, app, now)
+    app.modals.draw(g, g.area())
+
+private drawMenu(g: Grid, page: Rect, app: Practice)
+    val parts = page.rows([Fixed(1), Fixed(1), Fixed(1), Fixed(app.modes.length), Fixed(1), Fill(), Fixed(1), Fixed(1)])
+    heading(g, parts(1), "choose a drill")
+    app.menu.drawSpans(g, parts(3), app.modes.map(m -> menuRow(app, m)))
+    g.textBlock(parts(5), "Words you mistype are remembered until you quit.", dim)
+    g.keyHints(page.x, parts(6).y, menuKeys, keyStyle, dim, clip = parts(6))
+
+private menuRow(app: Practice, m: Mode) -> Vector[Span]
+    val style = if app.available(m) then None else Some(dim)
+    [Span(s"${m.ordinal + 1}", style), Span(title(m), style), Span(about(app, m), Some(dim))]
+
+// What a mode's menu row says it holds.
+private about(app: Practice, m: Mode) -> string
+about(_, ShortPassages) = s"${shortExcerpts.length} short excerpts from six classic novels"
+about(_, LongPassages) = s"${longExcerpts.length} longer excerpts for sustained practice"
+about(_, TrickyWords) = "doubled letters, awkward runs, capitals, punctuation"
+about(app, MyMistakes) =
+    if app.mistakes.words.isEmpty then "type a drill first: the words you miss collect here"
+    else s"${app.mistakes.words.length} words you have mistyped"
+
+private drawDrill(g: Grid, page: Rect, app: Practice, now: long)
+    val s = app.session
+    val parts = page.rows([Fixed(1), Fixed(1), Fixed(1), Fixed(1), Fixed(1), Fixed(1), Fill(), Fixed(1), Fixed(1), Fixed(1)])
+    heading(g, parts(1), title(app.mode))
+    drawFigures(g, parts(3), s, now)
+    drawProgress(g, parts(4), s)
+    val source = app.excerpt match
+        Some(e) -> s"${e.work.author}, ${e.work.title}"
+        None -> s"${s.passage.split(" ").length} words"
+    drawPassage(g, parts(6), s, source)
+    g.textIn(page.x, parts(7).y, page.w, hint(s), dim)
+    g.keyHints(page.x, parts(8).y, drillKeys, keyStyle, dim, clip = parts(8))
+
+private heading(g: Grid, r: Rect, subtitle: string)
+    g.spans(r.x, r.y, [Span("typist", Some(Style.fg(Cyan).with(Bold))), Span("  "), Span(subtitle, Some(dim))], clip = r)
+
+// The live figures: speed, accuracy in a colour for how good it is, and the time taken.
+private drawFigures(g: Grid, r: Rect, s: Session, now: long)
+    val accuracy = Style.fg(accuracyColor(s.accuracy)).with(Bold)
+    g.spans(r.x, r.y, [Span(s"${s.wpm(now)}", Some(figure)), Span(" wpm    "),
+                       Span(s"${s.accuracy}%", Some(accuracy)), Span(" accuracy    "),
+                       Span(clock(s.elapsed(now)), Some(figure)), Span(" time")], clip = r)
+
+// A bar for how far through the passage the cursor is, and the count of characters.
+private drawProgress(g: Grid, r: Rect, s: Session)
+    val count = s"${s.cursor}/${s.target.length}"
+    val bar = max(r.w - textWidth(count) - 1, 0)
+    g.meter(r.x, r.y, bar, s.progress, Style.fg(Cyan), Style.plain().withBg(BrightBlack))
+    g.textIn(r.x + bar + 1, r.y, r.w - bar - 1, count, dim, align = 1)
+
+// The passage in a box titled with where it comes from, wrapped at words and scrolled to keep the
+// cursor in view, each character coloured by how it was typed.
+private drawPassage(g: Grid, box: Rect, s: Session, source: string)
+    g.box(box, dim, Rounded, s" $source ")
+    val inside = box.inset(1)
+    val text = inside.pad(1, 0)
+    val rows = rowsOf(s.passage, text.w)
+    val first = firstShown(rowOf(rows, s.cursor), rows.length, text.h)
+    for k in 0 ..< min(text.h, rows.length - first)
+        // A space dropped where a row breaks lands in the right-hand margin, inside the box.
+        g.spans(text.x, text.y + k, spansOf(s, rows(first + k)), clip = inside)
+    g.scrollbar(Rect(box.right() - 1, inside.y, 1, inside.h), rows.length, first, text.h, Scrollbar(dim, Style.fg(Cyan)))
+
+// The characters of `row` in runs of one mark each, a mistyped space shown as `·`.
+spansOf(s: Session, row: Row) -> Vector[Span]
+    val spans = Vector.newBuilder[Span]()
+    var run = StringWriter()
+    var mark = s.mark(row.start)
+    for i in row.start ..< row.end
+        val m = s.mark(i)
+        if m != mark
+            spans.addOne(Span(run.text, Some(styleOf(mark))))
+            run = StringWriter()
+            mark = m
+        run.writeChar(if m == Wrong && s.target(i) == ' ' then '·' else s.target(i))
+    if row.end > row.start then spans.addOne(Span(run.text, Some(styleOf(mark))))
+    spans.result()
+
+// How a character of each mark is drawn.
+styleOf(m: Mark) -> Style
+styleOf(Right) = Style.fg(Green)
+styleOf(Wrong) = Style(BrightWhite, Red, Bold)
+styleOf(Next) = Style.plain().with(Reverse)
+styleOf(Pending) = dim
+
+private accuracyColor(percent: int) -> Color
+accuracyColor(p >= 95) = Green
+accuracyColor(p >= 85) = Yellow
+accuracyColor(_) = Red
+
+// Milliseconds as minutes and seconds, `1:05`.
+clock(ms: long) -> string = f"${ms / 60000}:${ms / 1000 % 60}%02d"
+
+// The line under the passage: how to begin, then the mistakes so far.
+hint(s: Session) -> string =
+    if s.started.isEmpty then "Start typing when ready: the clock starts with your first key."
+    else if s.mistakes == 0 then "No mistakes yet."
+    else s"${s.mistakes} ${if s.mistakes == 1 then "mistake" else "mistakes"} so far. Backspace corrects."
+
+// What a finished drill scored, as label and value.
+figuresOf(s: Session) -> Vector[(string, string)]
+    val at = s.finished.getOrElse(0)
+    [("Speed", s"${s.wpm(at)} wpm"),
+     ("Accuracy", s"${s.accuracy}%"),
+     ("Time", clock(s.elapsed(at))),
+     ("Correct", s"${s.correct} of ${s.target.length} characters"),
+     ("Mistakes", s"${s.mistakes} of ${s.keystrokes} keystrokes")]
+
+// The box over a finished drill: its scores, and keys for what next. `choose` hears the answer.
+class Results(val session: Session, val choose: (Choice) -> unit): Modal
+    val figures: Vector[(string, string)] = figuresOf(session)
+
+    override title() -> string = " drill complete "
+
+    override measure(maxWidth: int, maxHeight: int) -> (int, int) =
+        (min(maxWidth, 42), min(maxHeight, figures.length + 2))
+
+    override draw(g: Grid, r: Rect)
+        val inside = r.pad(1, 0)
+        g.labelValues(inside, figures, dim, figure)
+        g.keyHints(inside.x, inside.bottom() - 1, resultKeys, keyStyle, dim, clip = inside)
+
+    override handle(e: Event) -> bool
+        val answer: Option[Choice] = e match
+            KeyPress(Enter, _) -> Some(NextDrill)
+            KeyPress(Tab, _) -> Some(NextDrill)
+            KeyPress(Char('r'), _) -> Some(Retry)
+            KeyPress(Escape, _) -> Some(BackToMenu)
+            KeyPress(Char('q'), _) -> Some(Leave)
+            _ -> None
+        answer match
+            Some(c) ->
+                choose(c)
+                false
+            None -> true

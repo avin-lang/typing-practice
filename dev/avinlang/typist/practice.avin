@@ -1,0 +1,136 @@
+module dev.avinlang.typist
+
+import avin.random.Random
+import dev.avinlang.tui.{Alt, Backspace, Char, Ctrl, Down, Enter, Escape, Event, KeyPress, ModalStack, Stop, Tab, Table, Up}
+
+// The kinds of drill, in the order the menu lists them.
+data Mode derives Enumerable
+    ShortPassages
+    LongPassages
+    TrickyWords
+    MyMistakes
+
+// What the menu calls a mode.
+title(m: Mode) -> string
+title(ShortPassages) = "Short passages"
+title(LongPassages) = "Longer passages"
+title(TrickyWords) = "Tricky words"
+title(MyMistakes) = "My mistakes"
+
+// The excerpts a mode draws its passages from; none for a word drill.
+excerptsOf(m: Mode) -> Vector[Excerpt]
+excerptsOf(ShortPassages) = shortExcerpts
+excerptsOf(LongPassages) = longExcerpts
+excerptsOf(_) = []
+
+// What the program does after an event: carry on, or end.
+data Outcome
+    Stay
+    Quit
+
+// What the results box asks for once a drill is done.
+data Choice
+    NextDrill
+    Retry
+    BackToMenu
+    Leave
+
+// The whole program apart from the terminal: the menu, the drill being typed, the results box over
+// it when it is done, and the words mistyped so far. Events and times are given to it, so tests drive
+// it exactly as the terminal loop does.
+class Practice(val rng: Random)
+    val mistakes = Mistakes()
+    val modes: Vector[Mode] = Mode.values
+    // The menu, its selected row the mode it would start.
+    val menu: Table = menuTable()
+    val modals = ModalStack()
+    var choosing = true
+    var mode: Mode = ShortPassages
+    // Which excerpt of the mode's is being typed, for a passage mode.
+    var lesson: Option[int] = None
+    var session = Session("")
+    private var leaving = false
+
+    // The excerpt being typed, for a passage mode.
+    excerpt -> Option[Excerpt] = lesson.map(i -> excerptsOf(mode)(i))
+
+    // Whether `m` has anything to drill: a mistakes drill needs a mistake first.
+    available(m: Mode) -> bool = m != MyMistakes || mistakes.words.nonEmpty
+
+    // Starts a drill of mode `m`, if it has one.
+    start(m: Mode)
+        if !available(m) then return
+        if m != mode then lesson = None
+        mode = m
+        choosing = false
+        next()
+
+    // A new drill in the current mode; a passage mode never repeats the passage just typed.
+    next()
+        modals.clear()
+        session = Session(mode match
+            TrickyWords -> wordDrill(rng, trickyWords)
+            MyMistakes -> mistakes.drill(rng)
+            _ ->
+                val pool = excerptsOf(mode)
+                val i = choose(rng, pool.length, lesson)
+                lesson = Some(i)
+                pool(i).text)
+
+    // The same drill again with a fresh score.
+    retry()
+        modals.clear()
+        session = Session(session.passage)
+
+    // Back to the menu, with the mode just typed selected.
+    toMenu()
+        modals.clear()
+        choosing = true
+        menu.select(mode.ordinal, modes.length)
+
+    // Takes an event at time `now`. Ctrl-C and a signal end the program from anywhere; the results
+    // box takes keys while it is open.
+    handle(event: Event, now: long) -> Outcome
+        if quits(event) then return Quit
+        if !modals.handle(event)
+            if choosing then menuKey(event) else typingKey(event, now)
+        if leaving then Quit else Stay
+
+    private menuKey(event: Event)
+        event match
+            KeyPress(Up, _) -> menu.moveBy(-1, modes.length)
+            KeyPress(Down, _) -> menu.moveBy(1, modes.length)
+            KeyPress(Enter, _) -> start(modes(menu.selected))
+            KeyPress(Char('1' <= c <= '4'), 0) ->
+                menu.select(int(c) - int('1'), modes.length)
+                start(modes(menu.selected))
+            KeyPress(Escape, _) -> leaving = true
+            _ -> ()
+
+    private typingKey(event: Event, now: long)
+        event match
+            KeyPress(Escape, _) -> toMenu()
+            KeyPress(Tab, _) -> next()
+            KeyPress(Char('r'), mods) if (mods & Ctrl) != 0 -> retry()
+            KeyPress(Backspace, _) -> session.backspace()
+            KeyPress(Char(c), mods) if (mods & (Ctrl | Alt)) == 0 -> typeChar(c, now)
+            _ -> ()
+
+    private typeChar(c: char, now: long)
+        val at = session.cursor
+        if session.typeChar(c, now) then mistakes.record(session.target, at)
+        if session.done then modals.push(Results(session, answer))
+
+    // Acts on the results box's answer.
+    private answer(c: Choice)
+        c match
+            NextDrill -> next()
+            Retry -> retry()
+            BackToMenu -> toMenu()
+            Leave -> leaving = true
+
+// Whether an event ends the program wherever it arrives.
+private quits(e: Event) -> bool
+quits(Stop(_)) = true
+quits(KeyPress(Char('c'), mods)) = (mods & Ctrl) != 0
+quits(_) = false

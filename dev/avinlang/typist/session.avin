@@ -1,0 +1,70 @@
+module dev.avinlang.typist
+
+// How a character of the passage is shown: typed as it stands, typed wrongly, the next to type, or
+// not reached yet.
+data Mark
+    Right
+    Wrong
+    Next
+    Pending
+
+// One run through a passage. Times are monotonic milliseconds supplied by the caller, so scoring is
+// deterministic in tests.
+//
+// The clock starts at the first printable key and stops when as many characters have been typed as
+// the passage holds, mistakes included. Backspace takes back the last character until then.
+class Session(val passage: string)
+    val target: Vector[char] = passage.chars
+    val typed = Buffer[char]()
+    var started: Option[long] = None
+    var finished: Option[long] = None
+    // Every printable key pressed, and those that did not match the passage where they landed: a
+    // mistake corrected with Backspace still counts against accuracy.
+    var keystrokes = 0
+    var mistakes = 0
+
+    // Where the next character goes.
+    cursor -> int = typed.length
+
+    done -> bool = typed.length == target.length
+
+    // The characters typed that match the passage, as it stands now.
+    correct -> int = typed.indices.count(i -> typed(i) == target(i))
+
+    // The share of keystrokes that were right, in whole percent; 100 before the first.
+    accuracy -> int = if keystrokes == 0 then 100 else (keystrokes - mistakes) * 100 / keystrokes
+
+    // How far through the passage the cursor is, from 0 to 1.
+    progress -> real = if target.isEmpty then 1.0 else real(typed.length) / real(target.length)
+
+    // Types `c` at the cursor and answers whether it was a mistake. A control character, or any key
+    // once the passage is done, types nothing.
+    typeChar(c: char, now: long) -> bool
+        if done || c < ' ' || c == '\u{7f}' then return false
+        if started.isEmpty then started = Some(now)
+        val wrong = c != target(cursor)
+        keystrokes += 1
+        if wrong then mistakes += 1
+        typed.addOne(c)
+        if done then finished = Some(now)
+        wrong
+
+    // Takes back the last character typed, unless the passage is done.
+    backspace()
+        if !done && typed.nonEmpty then typed.remove(typed.length - 1)
+
+    // How long typing has taken, frozen once the passage is done.
+    elapsed(now: long) -> long = started match
+        Some(start) -> max(finished.getOrElse(now) - start, long(0))
+        None -> 0
+
+    // Words per minute, a word being five correct characters. Mistakes still cost the time they took.
+    wpm(now: long) -> int
+        val ms = elapsed(now)
+        if ms <= 0 then 0 else int(real(correct) * 12000.0 / real(ms))
+
+    // How character `i` of the passage is shown.
+    mark(i: int) -> Mark =
+        if i < typed.length then (if typed(i) == target(i) then Right else Wrong)
+        else if i == typed.length then Next
+        else Pending
