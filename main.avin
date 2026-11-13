@@ -5,20 +5,20 @@ import dev.avinlang.typist.{Practice, Quit, draw}
 import dev.avinlang.tui.{Options, Terminal}
 
 main() -> int = Terminal.use(Options(), run) match
-    Ok(()) -> 0
-    Err(e) ->
-        eprintln(s"typist: ${e.message}")
-        1
+  Ok(()) -> 0
+  Err(e) ->
+    eprintln(s"typist: ${e.message}")
+    1
 
 // How long to wait for a key before drawing again, so the clock and speed stay current.
 val tick: time.Duration = time.millis(100)
 
 run(term: Terminal)
-    val app = Practice(Random())
-    loop
-        val g = term.frame()
-        draw(g, app, now())
-        term.present(g)
-        if term.poll(tick) is Some(event) && app.handle(event, now()) == Quit then return
+  val app = Practice(Random())
+  loop
+    val g = term.frame()
+    draw(g, app, now())
+    term.present(g)
+    if term.poll(tick) is Some(event) && app.handle(event, now()) == Quit then return
 
 private now() -> long = time.monotonic().toMillis

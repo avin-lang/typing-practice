@@ -10,19 +10,19 @@ import avin.process.{Command, MacOS}
 
 @test("typist in a pty draws the menu and a drill, quits on Ctrl-C and puts the terminal back")
 ctrlCQuits()
-    if process.os() != MacOS then return
-    val dir = fs.createTempDir("typist-pty-").getOrElse("")
-    assert(dir != "")
-    defer fs.removeDirAll(dir)
-    val compiler = process.env("AVIN_COMPILER").getOrElse("avin")
-    val here = process.currentDir().getOrElse("")
-    assert(Command(compiler, "build", here, "-o", dir + "/typist").output().isOk, "building typist")
-    val keys = "(sleep 2; printf 3; sleep 1; printf Hel; sleep 1; printf '\\003'; sleep 1)"
-    val script = keys + " | script -q /dev/null sh -c 'stty cols 80 rows 24; \"$TYPIST\"; echo STATUS=$?; stty -a'"
-    val shown = Command("sh", "-c", script).withEnv("TYPIST", dir + "/typist").output().getOrElse("")
-    assert(shown.contains("\u{1b}[?1049h"), "it drew on the alternate screen")
-    assert(shown.contains("choose a drill"), "it drew the menu")
-    assert(shown.contains("Tricky words") && shown.contains("wpm"), "it drew the drill with live figures")
-    assert(shown.contains("STATUS=0"), "it ended with status 0")
-    assert(shown.lastIndexOf("\u{1b}[?1049l") > shown.indexOf("\u{1b}[?1049h"), "it left the alternate screen")
-    assert(shown.contains("lflags: icanon") && shown.contains(" echo "), "cooked mode again")
+  if process.os() != MacOS then return
+  val dir = fs.createTempDir("typist-pty-").getOrElse("")
+  assert(dir != "")
+  defer fs.removeDirAll(dir)
+  val compiler = process.env("AVIN_COMPILER").getOrElse("avin")
+  val here = process.currentDir().getOrElse("")
+  assert(Command(compiler, "build", here, "-o", dir + "/typist").output().isOk, "building typist")
+  val keys = "(sleep 2; printf 3; sleep 1; printf Hel; sleep 1; printf '\\003'; sleep 1)"
+  val script = keys + " | script -q /dev/null sh -c 'stty cols 80 rows 24; \"$TYPIST\"; echo STATUS=$?; stty -a'"
+  val shown = Command("sh", "-c", script).withEnv("TYPIST", dir + "/typist").output().getOrElse("")
+  assert(shown.contains("\u{1b}[?1049h"), "it drew on the alternate screen")
+  assert(shown.contains("choose a drill"), "it drew the menu")
+  assert(shown.contains("Tricky words") && shown.contains("wpm"), "it drew the drill with live figures")
+  assert(shown.contains("STATUS=0"), "it ended with status 0")
+  assert(shown.lastIndexOf("\u{1b}[?1049l") > shown.indexOf("\u{1b}[?1049h"), "it left the alternate screen")
+  assert(shown.contains("lflags: icanon") && shown.contains(" echo "), "cooked mode again")

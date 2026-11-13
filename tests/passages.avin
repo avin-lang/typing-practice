@@ -5,73 +5,73 @@ import avin.random.Random
 import dev.avinlang.typist.{Excerpt, choose, drillLength, longExcerpts, shortExcerpts, trickyWords, wordDrill}
 
 checkCollection(excerpts: Vector[Excerpt], shortest: int)
-    for i in excerpts.indices
-        val e = excerpts(i)
-        assert(e.text.charCount >= shortest, e.text)
-        assert(e.text.forall(c -> ' ' <= c <= '~'), s"printable ASCII only: ${e.text}")
-        assert(!e.text.contains("  "), s"single spaces only: ${e.text}")
-        assertEq(e.text, e.text.trim)
-        assert(e.work.author.nonEmpty && e.work.title.nonEmpty)
-        assert(e.work.source.startsWith("https://www.gutenberg.org/ebooks/"))
-        for j in i + 1 ..< excerpts.length
-            assert(e.text != excerpts(j).text)
+  for i in excerpts.indices
+    val e = excerpts(i)
+    assert(e.text.charCount >= shortest, e.text)
+    assert(e.text.forall(c -> ' ' <= c <= '~'), s"printable ASCII only: ${e.text}")
+    assert(!e.text.contains("  "), s"single spaces only: ${e.text}")
+    assertEq(e.text, e.text.trim)
+    assert(e.work.author.nonEmpty && e.work.title.nonEmpty)
+    assert(e.work.source.startsWith("https://www.gutenberg.org/ebooks/"))
+    for j in i + 1 ..< excerpts.length
+      assert(e.text != excerpts(j).text)
 
 @test("short excerpts: 24, four from each of six books, printable and distinct")
 shortCollection()
-    assertEq(shortExcerpts.length, 24)
-    checkCollection(shortExcerpts, 80)
-    val works = shortExcerpts.map(e -> e.work).distinct
-    assertEq(works.length, 6)
-    for w in works
-        assertEq(shortExcerpts.count(e -> e.work == w), 4)
+  assertEq(shortExcerpts.length, 24)
+  checkCollection(shortExcerpts, 80)
+  val works = shortExcerpts.map(e -> e.work).distinct
+  assertEq(works.length, 6)
+  for w in works
+    assertEq(shortExcerpts.count(e -> e.work == w), 4)
 
 @test("longer excerpts: 8 of at least 550 characters, printable and distinct")
 longCollection()
-    assertEq(longExcerpts.length, 8)
-    checkCollection(longExcerpts, 550)
+  assertEq(longExcerpts.length, 8)
+  checkCollection(longExcerpts, 550)
 
 @test("the sources page's counts hold: two longer excerpts from Carroll and Melville, one from the rest")
 longSources()
-    for e in longExcerpts
-        val expected = if e.work.author == "Lewis Carroll" || e.work.author == "Herman Melville" then 2 else 1
-        assert(longExcerpts.count(x -> x.work == e.work) == expected, e.work.title)
-    assertEq(longExcerpts.map(e -> e.work).distinct.length, 6)
+  for e in longExcerpts
+    val expected = if e.work.author == "Lewis Carroll" || e.work.author == "Herman Melville" then 2 else 1
+    assert(longExcerpts.count(x -> x.work == e.work) == expected, e.work.title)
+  assertEq(longExcerpts.map(e -> e.work).distinct.length, 6)
 
 @test("random selection reaches every index and never repeats the last")
 selection()
-    val rng = Random(42)
-    val seen = Buffer[int]()
-    var previous: Option[int] = None
-    for _ in 0 ..< 1000
-        val chosen = choose(rng, 24, previous)
-        assert(0 <= chosen < 24)
-        assert(previous != Some(chosen))
-        if !seen.contains(chosen) then seen.addOne(chosen)
-        previous = Some(chosen)
-    assertEq(seen.length, 24)
+  val rng = Random(42)
+  val seen = Buffer[int]()
+  var previous: Option[int] = None
+  for _ in 0 ..< 1000
+    val chosen = choose(rng, 24, previous)
+    assert(0 <= chosen < 24)
+    assert(previous != Some(chosen))
+    if !seen.contains(chosen) then seen.addOne(chosen)
+    previous = Some(chosen)
+  assertEq(seen.length, 24)
 
 @test("the first selection varies and the same seed repeats it")
 initialSelection()
-    val a = Random(123)
-    val b = Random(123)
-    val seen = Buffer[int]()
-    for _ in 0 ..< 200
-        val chosen = choose(a, 24, None)
-        assertEq(chosen, choose(b, 24, None))
-        if !seen.contains(chosen) then seen.addOne(chosen)
-    assert(seen.length > 4)
+  val a = Random(123)
+  val b = Random(123)
+  val seen = Buffer[int]()
+  for _ in 0 ..< 200
+    val chosen = choose(a, 24, None)
+    assertEq(chosen, choose(b, 24, None))
+    if !seen.contains(chosen) then seen.addOne(chosen)
+  assert(seen.length > 4)
 
 @test("a collection of one is chosen again rather than failing")
 singleChoice()
-    assertEq(choose(Random(1), 1, None), 0)
-    assertEq(choose(Random(1), 1, Some(0)), 0)
-    assertEq(choose(Random(1), 2, Some(0)), 1)
-    assertEq(choose(Random(1), 2, Some(1)), 0)
+  assertEq(choose(Random(1), 1, None), 0)
+  assertEq(choose(Random(1), 1, Some(0)), 0)
+  assertEq(choose(Random(1), 2, Some(0)), 1)
+  assertEq(choose(Random(1), 2, Some(1)), 0)
 
 @test("word drills draw a full drill from the list, and nothing from an empty one")
 wordDrills()
-    val words = wordDrill(Random(5), trickyWords).split(" ")
-    assertEq(words.length, drillLength)
-    assert(words.forall(w -> trickyWords.contains(w)))
-    assertEq(wordDrill(Random(5), []), "")
-    assertEq(wordDrill(Random(5), ["one"]), Vector.fill(drillLength, "one").mkString(" "))
+  val words = wordDrill(Random(5), trickyWords).split(" ")
+  assertEq(words.length, drillLength)
+  assert(words.forall(w -> trickyWords.contains(w)))
+  assertEq(wordDrill(Random(5), []), "")
+  assertEq(wordDrill(Random(5), ["one"]), Vector.fill(drillLength, "one").mkString(" "))
