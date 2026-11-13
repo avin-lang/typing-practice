@@ -37,9 +37,9 @@ val passages: Vector[string] = shortLiterature.map(p -> p.text)
 
 // Choose uniformly from the collection, excluding the previous passage when present.
 choosePassage(rng: Random, previous: Option[int]) -> int = previous match
-    None -> rng.nextInt(passages.length())
+    None -> rng.nextInt(passages.length)
     Some(index) ->
-        val chosen = rng.nextInt(passages.length() - 1)
+        val chosen = rng.nextInt(passages.length - 1)
         if chosen >= index then chosen + 1 else chosen
 
 val longLiterature: Vector[LiteraryPassage] = [

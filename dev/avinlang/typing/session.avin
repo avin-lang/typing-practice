@@ -4,25 +4,25 @@ import dev.avinlang.tui.{Alt, Backspace, Char, Ctrl, Enter, Escape, Event, KeyPr
 
 // Times are monotonic milliseconds, supplied by the caller so scoring is deterministic in tests.
 class Session(val passage: string)
-    val target: Vector[char] = passage.chars()
+    val target: Vector[char] = passage.chars
     val typed = Buffer[char]()
     var started: Option[long] = None
     var finished: Option[long] = None
     var attempts = 0
     var mistakes = 0
 
-    done() -> bool = typed.length() == target.length()
+    done() -> bool = typed.length == target.length
 
     typeChar(c: char, now: long)
         if done() || c < ' ' || c == char(127) then return
-        if started.isEmpty() then started = Some(now)
+        if started.isEmpty then started = Some(now)
         attempts += 1
-        if c != target(typed.length()) then mistakes += 1
+        if c != target(typed.length) then mistakes += 1
         typed.addOne(c)
         if done() then finished = Some(now)
 
     backspace()
-        if !done() && typed.nonEmpty() then typed.remove(typed.length() - 1)
+        if !done() && typed.nonEmpty then typed.remove(typed.length - 1)
 
     elapsed(now: long) -> long = started match
         Some(start) -> maxMillis(0, finished.getOrElse(now) - start)
@@ -30,7 +30,7 @@ class Session(val passage: string)
 
     correct() -> int
         var count = 0
-        for i in 0 ..< typed.length()
+        for i in 0 ..< typed.length
             if typed(i) == target(i) then count += 1
         count
 

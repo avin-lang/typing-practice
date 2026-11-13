@@ -12,35 +12,35 @@ class Mistakes()
     val words = Buffer[string]()
 
     record(target: Vector[char], at: int)
-        if at < 0 || at >= target.length() then return
-        if target(at).isWhitespace() then return
+        if at < 0 || at >= target.length then return
+        if target(at).isWhitespace then return
         val index = at
         var start = index
         var end = index
         while start > 0 && target(start - 1) != ' '
             start -= 1
-        while end < target.length() && target(end) != ' '
+        while end < target.length && target(end) != ' '
             end += 1
         val out = StringWriter()
         for i in start ..< end
             val c = target(i)
-            if c.isLetter()
+            if c.isLetter
                 out.write(c.toString())
             else if (c == '\'' || c == '’') && start < i < end - 1
-                if target(i - 1).isLetter() && target(i + 1).isLetter()
+                if target(i - 1).isLetter && target(i + 1).isLetter
                     out.write("'")
-        val word = practiceWord(out.text())
-        if word.isEmpty() then return
+        val word = practiceWord(out.text)
+        if word.isEmpty then return
         // Compare without case, but retain the first spelling from the source.
         for saved in words
-            if saved.toLowerCase() == word.toLowerCase() then return
+            if saved.toLowerCase == word.toLowerCase then return
         words.addOne(word)
 
     // Sample without replacement; a small collection makes a shorter drill.
-    drill(rng: Random) -> string = rng.shuffle(words.toVector()).take(24).mkString(" ")
+    drill(rng: Random) -> string = rng.shuffle(words.toVector).take(24).mkString(" ")
 
 // The first-person pronoun stays capitalized, including its contractions.
-private practiceWord(word: string) -> string = word.toLowerCase() match
+private practiceWord(word: string) -> string = word.toLowerCase match
     "i" -> "I"
     "i'm" -> "I'm"
     "i'd" -> "I'd"
@@ -49,11 +49,11 @@ private practiceWord(word: string) -> string = word.toLowerCase() match
     _ -> word
 
 wordDrill(rng: Random, words: Vector[string]) -> string
-    if words.isEmpty() then return ""
+    if words.isEmpty then return ""
     val chosen = Buffer[string]()
     for _ in 0 ..< 24
-        chosen.addOne(words(rng.nextInt(words.length())))
-    chosen.toVector().mkString(" ")
+        chosen.addOne(words(rng.nextInt(words.length)))
+    chosen.toVector.mkString(" ")
 
 // UI state and event handling are independent of the terminal for testing.
 class Practice(val rng: Random)
@@ -65,7 +65,7 @@ class Practice(val rng: Random)
     var session = Session("")
 
     start(which: int)
-        if which == 3 && mistakes.words.isEmpty() then return
+        if which == 3 && mistakes.words.isEmpty then return
         if which != mode then lesson = -1
         mode = which
         next()
@@ -76,7 +76,7 @@ class Practice(val rng: Random)
             lesson = choosePassage(rng, if lesson < 0 then None else Some(lesson))
             session = Session(passages(lesson))
         else if mode == 1
-            val chosen = rng.nextInt(longPassages.length() - (if lesson < 0 then 0 else 1))
+            val chosen = rng.nextInt(longPassages.length - (if lesson < 0 then 0 else 1))
             lesson = if lesson >= 0 && chosen >= lesson then chosen + 1 else chosen
             session = Session(longPassages(lesson))
         else if mode == 2
@@ -105,7 +105,7 @@ class Practice(val rng: Random)
                     _ -> ()
             else
                 val before = session.mistakes
-                val index = session.typed.length()
+                val index = session.typed.length
                 val action = session.handle(event, now)
                 if session.mistakes > before then mistakes.record(session.target, index)
                 if action == 2 then session = Session(session.passage)
