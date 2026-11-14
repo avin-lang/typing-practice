@@ -3,20 +3,7 @@ module dev.avinlang.typist
 import avin.random.Random
 
 import dev.avinlang.tui.{
-  Alt,
-  Backspace,
-  Char,
-  Ctrl,
-  Down,
-  Enter,
-  Escape,
-  Event,
-  KeyPress,
-  ModalStack,
-  Stop,
-  Tab,
-  Table,
-  Up
+  Alt, Backspace, Char, Ctrl, Down, Enter, Escape, Event, KeyPress, ModalStack, Stop, Tab, Table, Up
 }
 
 // The kinds of drill, in the order the menu lists them.

@@ -61,15 +61,7 @@ properNouns()
   assertEq(
     recorded(
       [
-        "February,",
-        "Wednesday.",
-        "London!",
-        "Alice",
-        "Elizabeth",
-        "February",
-        "FEBRUARY",
-        "february",
-        "wednesday",
+        "February,", "Wednesday.", "London!", "Alice", "Elizabeth", "February", "FEBRUARY", "february", "wednesday",
         "ALICE"
       ],
       1

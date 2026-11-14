@@ -37,5 +37,5 @@ wordAt(target: Vector[char], at: int) -> Option[string]
 private isApostrophe(c: char) -> bool = c == '\'' || c == '’'
 
 private firstPerson(word: string) -> string
-  val lower = word.toLowerCase
+  val lower = word.toLower
   if lower == "i" || lower.startsWith("i'") then "I" + lower.drop(1) else word

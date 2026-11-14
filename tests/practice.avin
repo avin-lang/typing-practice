@@ -5,18 +5,8 @@ module tests
 import avin.random.Random
 
 import dev.avinlang.typist.{
-  LongPassages,
-  Mode,
-  MyMistakes,
-  Practice,
-  Quit,
-  Session,
-  ShortPassages,
-  Stay,
-  TrickyWords,
-  longExcerpts,
-  shortExcerpts,
-  trickyWords
+  LongPassages, Mode, MyMistakes, Practice, Quit, Session, ShortPassages, Stay, TrickyWords, longExcerpts,
+  shortExcerpts, trickyWords
 }
 
 import dev.avinlang.tui.{Alt, Backspace, Char, Ctrl, Down, Enter, Escape, Event, KeyPress, Paste, Resize, Stop, Tab, Up}

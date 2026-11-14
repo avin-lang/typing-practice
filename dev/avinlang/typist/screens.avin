@@ -1,33 +1,8 @@
 module dev.avinlang.typist
 
 import dev.avinlang.tui.{
-  Bold,
-  BrightBlack,
-  BrightWhite,
-  Char,
-  Color,
-  Column,
-  Cyan,
-  Enter,
-  Escape,
-  Event,
-  Fill,
-  Fixed,
-  Green,
-  Grid,
-  KeyPress,
-  Modal,
-  Rect,
-  Red,
-  Reverse,
-  Rounded,
-  Scrollbar,
-  Span,
-  Style,
-  Tab,
-  Table,
-  Yellow,
-  textWidth
+  Bold, BrightBlack, BrightWhite, Char, Color, Column, Cyan, Enter, Escape, Event, Fill, Fixed, Green, Grid, KeyPress,
+  Modal, Rect, Red, Reverse, Rounded, Scrollbar, Span, Style, Tab, Table, Yellow, textWidth
 }
 
 // The smallest terminal the program draws in, and the widest its column of text grows.
@@ -91,7 +66,6 @@ private about(app: Practice, m: Mode) -> string
 about(_, ShortPassages) = s"${shortExcerpts.length} short excerpts from six classic novels"
 about(_, LongPassages) = s"${longExcerpts.length} longer excerpts for sustained practice"
 about(_, TrickyWords) = "doubled letters, awkward runs, capitals, punctuation"
-
 about(app, MyMistakes) =
   if app.mistakes.words.isEmpty then "type a drill first: the words you miss collect here"
   else s"${app.mistakes.words.length} words you have mistyped"

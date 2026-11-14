@@ -9,7 +9,7 @@ avin build . -o typist
 avin test .
 ```
 
-The manifest fetches `avin-lang/tui` 0.2.5. Run it in a terminal at least 40 columns wide and 15
+The manifest fetches `avin-lang/tui` 0.2.6. Run it in a terminal at least 40 columns wide and 15
 rows tall.
 
 ## Drills

@@ -5,27 +5,8 @@ module tests
 import avin.random.Random
 
 import dev.avinlang.typist.{
-  LongPassages,
-  Practice,
-  Row,
-  Session,
-  ShortPassages,
-  TrickyWords,
-  clock,
-  draw,
-  figuresOf,
-  firstShown,
-  hint,
-  longExcerpts,
-  rowOf,
-  rowsOf,
-  shortExcerpts,
-  spansOf,
-  styleOf,
-  Next,
-  Pending,
-  Right,
-  Wrong
+  LongPassages, Practice, Row, Session, ShortPassages, TrickyWords, clock, draw, figuresOf, firstShown, hint,
+  longExcerpts, rowOf, rowsOf, shortExcerpts, spansOf, styleOf, Next, Pending, Right, Wrong
 }
 
 import dev.avinlang.tui.{Char, Grid, KeyPress, Reverse, Span}
